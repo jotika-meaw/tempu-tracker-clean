@@ -1,0 +1,9 @@
+# Client deploys need only the Vite app and the shared route data.
+server
+android
+docs
+dist
+node_modules
+.env
+.env.*
+!.env.example
