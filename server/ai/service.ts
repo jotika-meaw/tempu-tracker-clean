@@ -7,6 +7,7 @@ import {
 } from "./prompt";
 import type { AiLanguage } from "../validation";
 import { ROUTE_TOOLS, runRouteTool } from "./tools";
+import { replacePlaceNamesWithEnglish } from "../../shared/placeNames";
 
 export type MetaFunctionCall = {
   type: "function_call";
@@ -66,7 +67,15 @@ export type AskResult = {
 const MAX_TOOL_ROUNDS = 3;
 const MAX_CALLS_PER_ROUND = 4;
 
-const ROUTE_CONTEXT = buildRouteContext();
+const ROUTE_CONTEXT: Record<AiLanguage, string> = {
+  bn: buildRouteContext("bn"),
+  en: buildRouteContext("en"),
+  ctg: buildRouteContext("ctg"),
+};
+
+const ROUTE_ABSENCE_BEFORE = /\b(?:no|not|isn't|without)\s+(?:[\w-]+\s+){0,2}$/i;
+const ROUTE_ABSENCE_NEAR =
+  /(নেই|নাই|absent|not available|not in|not (?:a|an|listed|found|included|part|present|verified)|isn't|does not exist|doesn't exist|cannot be verified|can't be verified|যাচাইকৃত\s*তালিকায়\s*নেই)/i;
 
 function defaultSleep(milliseconds: number): Promise<void> {
   return new Promise((resolve) => {
@@ -216,9 +225,8 @@ function unknownRouteMention(
     const index = match.index ?? 0;
     const context = normalized.slice(Math.max(0, index - 45), index + 80);
     const explicitlyUnavailable =
-      /(নেই|নাই|absent|not available|not in|does not exist|যাচাইকৃত\s*তালিকায়\s*নেই)/i.test(
-        context
-      );
+      ROUTE_ABSENCE_BEFORE.test(normalized.slice(Math.max(0, index - 45), index)) ||
+      ROUTE_ABSENCE_NEAR.test(context);
 
     if (!explicitlyUnavailable) return routeNumber;
   }
@@ -282,7 +290,7 @@ export class MetaAIService {
       try {
         response = await this.createWithRetry({
           model: this.model,
-          instructions: buildInstructions(ROUTE_CONTEXT, liveSummary, input.language, useTools),
+          instructions: buildInstructions(ROUTE_CONTEXT[input.language], liveSummary, input.language, useTools),
           input: items ?? input.message,
           store: false,
           max_output_tokens: this.maxOutputTokens,
@@ -295,7 +303,7 @@ export class MetaAIService {
           useTools = false;
           response = await this.createWithRetry({
             model: this.model,
-            instructions: buildInstructions(ROUTE_CONTEXT, liveSummary, input.language, false),
+            instructions: buildInstructions(ROUTE_CONTEXT[input.language], liveSummary, input.language, false),
             input: input.message,
             store: false,
             max_output_tokens: this.maxOutputTokens,
@@ -308,7 +316,7 @@ export class MetaAIService {
       const calls = offerTools ? (response.function_calls ?? []).slice(0, MAX_CALLS_PER_ROUND) : [];
       if (calls.length === 0) {
         return {
-          answer: this.validateAnswer(response.output_text),
+          answer: this.validateAnswer(response.output_text, input.language),
           model: this.model,
           toolCalls,
         };
@@ -320,7 +328,7 @@ export class MetaAIService {
         ...calls.map((call) => ({
           type: "function_call_output",
           call_id: call.call_id,
-          output: runRouteTool(call.name, call.arguments),
+          output: runRouteTool(call.name, call.arguments, input.language),
         })),
       ];
       toolCalls.push(...calls.map((call) => call.name));
@@ -355,7 +363,7 @@ export class MetaAIService {
     throw lastError ?? new AiError(503, "AI_UNAVAILABLE", "The AI provider failed.");
   }
 
-  private validateAnswer(raw: string | undefined): string {
+  private validateAnswer(raw: string | undefined, language: AiLanguage): string {
     // The answer box shows plain text, so drop Markdown bold/heading markers.
     const answer = (raw ?? "")
       .replace(/\*\*(.+?)\*\*/g, "$1")
@@ -379,6 +387,6 @@ export class MetaAIService {
       );
     }
 
-    return answer;
+    return language === "en" ? replacePlaceNamesWithEnglish(answer) : answer;
   }
 }

@@ -1,6 +1,8 @@
-import { planTrip, resolveStop } from "../../shared/trip";
+import { allTripStops, planTrip, resolveStop } from "../../shared/trip";
+import { placeName, routeDisplayName, stopFromEnglish } from "../../shared/placeNames";
 import { tempuRoutes } from "../../shared/routes";
 import { getDirectionData } from "../../shared/journey";
+import type { AiLanguage } from "../validation";
 
 /** Function tools offered to Muse Spark, in Responses API format. */
 export const ROUTE_TOOLS = [
@@ -12,8 +14,8 @@ export const ROUTE_TOOLS = [
     parameters: {
       type: "object",
       properties: {
-        from: { type: "string", description: "Starting stop name, in Bangla as written in the dataset." },
-        to: { type: "string", description: "Destination stop name, in Bangla as written in the dataset." },
+        from: { type: "string", description: "Starting stop name, as written in the dataset." },
+        to: { type: "string", description: "Destination stop name, as written in the dataset." },
       },
       required: ["from", "to"],
       additionalProperties: false,
@@ -44,10 +46,16 @@ function stringArg(args: Record<string, unknown>, key: string): string {
   return typeof value === "string" ? value.slice(0, 200) : "";
 }
 
-function findStop(query: string) {
+/** The model may pass a stop in either language; the dataset is keyed in Bangla. */
+function stopArg(args: Record<string, unknown>, key: string): string {
+  return stopFromEnglish(stringArg(args, key), allTripStops());
+}
+
+function findStop(query: string, language: AiLanguage) {
   const resolved = resolveStop(query);
+  const stops = (list: string[]) => list.map((stop) => placeName(stop, language));
   if (!resolved.stop) {
-    return { found: false, suggestions: resolved.suggestions };
+    return { found: false, suggestions: stops(resolved.suggestions) };
   }
 
   const served = tempuRoutes.flatMap((route) =>
@@ -58,24 +66,29 @@ function findStop(query: string) {
       return [
         {
           route: route.number,
-          name: route.name,
+          name: routeDisplayName(route.name, language),
           direction,
           position: `${index + 1} of ${data.stops.length}`,
-          nextStops: data.stops.slice(index + 1, index + 4),
+          nextStops: stops(data.stops.slice(index + 1, index + 4)),
           confidence: data.confidence,
         },
       ];
     })
   );
 
-  return { found: true, stop: resolved.stop, servedBy: served };
+  return { found: true, stop: placeName(resolved.stop, language), servedBy: served };
 }
 
 /**
  * Run one tool call. Tools only read the verified route dataset; they never
- * touch tracking sessions, coordinates, or anything user-specific.
+ * touch tracking sessions, coordinates, or anything user-specific. Place names
+ * come back in the answer language.
  */
-export function runRouteTool(name: string, rawArguments: string): string {
+export function runRouteTool(
+  name: string,
+  rawArguments: string,
+  language: AiLanguage = "bn"
+): string {
   let args: Record<string, unknown> = {};
   try {
     const parsed: unknown = JSON.parse(rawArguments || "{}");
@@ -87,21 +100,30 @@ export function runRouteTool(name: string, rawArguments: string): string {
   }
 
   if (name === "plan_trip") {
-    const plan = planTrip(stringArg(args, "from"), stringArg(args, "to"));
-    if (!plan.ok) return JSON.stringify(plan);
+    const plan = planTrip(stopArg(args, "from"), stopArg(args, "to"));
+    const stop = (value: string) => placeName(value, language);
+    const optionalStop = (value: string | null) => (value ? stop(value) : value);
+    if (!plan.ok) {
+      return JSON.stringify({
+        ...plan,
+        from: optionalStop(plan.from),
+        to: optionalStop(plan.to),
+        suggestions: plan.suggestions.map(stop),
+      });
+    }
     return JSON.stringify({
       ok: true,
-      from: plan.from,
-      to: plan.to,
+      from: stop(plan.from),
+      to: stop(plan.to),
       options: plan.options.map((option) => ({
         changes: option.transfers,
         stopsRidden: option.hops,
         legs: option.legs.map((item) => ({
           route: item.routeNumber,
           direction: item.direction,
-          board: item.boardStop,
-          alight: item.alightStop,
-          stops: item.stops,
+          board: stop(item.boardStop),
+          alight: stop(item.alightStop),
+          stops: item.stops.map(stop),
           confidence: item.confidence,
         })),
       })),
@@ -109,7 +131,7 @@ export function runRouteTool(name: string, rawArguments: string): string {
   }
 
   if (name === "find_stop") {
-    return JSON.stringify(findStop(stringArg(args, "query")));
+    return JSON.stringify(findStop(stopArg(args, "query"), language));
   }
 
   return JSON.stringify({ error: "UNKNOWN_TOOL" });

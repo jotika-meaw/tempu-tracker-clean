@@ -40,6 +40,13 @@ export function AssistantCard({ language, aiConfigured }: AssistantCardProps) {
   const aiDisabled = aiConfigured === false;
   const voiceSupported = voiceInputSupported();
 
+  // Follow the page language; the user can still pick another answer language.
+  const [lastPageLanguage, setLastPageLanguage] = useState(language);
+  if (lastPageLanguage !== language) {
+    setLastPageLanguage(language);
+    setAnswerLanguage(language);
+  }
+
   useEffect(() => () => recordingRef.current?.cancel(), []);
 
   async function stopVoice() {

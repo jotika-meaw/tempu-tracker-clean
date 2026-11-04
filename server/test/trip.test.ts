@@ -87,3 +87,26 @@ test("route tools return grounded JSON and reject bad arguments", () => {
   assert.deepEqual(JSON.parse(runRouteTool("plan_trip", "{not json")), { error: "INVALID_ARGUMENTS" });
   assert.deepEqual(JSON.parse(runRouteTool("delete_everything", "{}")), { error: "UNKNOWN_TOOL" });
 });
+
+test("route tools accept either language and answer in the selected one", () => {
+  const bangla = /[ঀ-৿]/;
+  const args = JSON.stringify({ from: "Muradpur", to: "Lal Dighi" });
+
+  const english = runRouteTool("plan_trip", args, "en");
+  assert.doesNotMatch(english, bangla);
+  const trip = JSON.parse(english);
+  assert.equal(trip.options[0].legs[0].route, "15");
+  assert.equal(trip.options[0].legs[0].board, "Muradpur");
+  assert.equal(trip.options[0].legs[0].alight, "Lal Dighi");
+
+  const standard = JSON.parse(runRouteTool("plan_trip", args, "ctg"));
+  assert.equal(standard.options[0].legs[0].board, "মুরাদপুর");
+
+  const stop = runRouteTool("find_stop", JSON.stringify({ query: "লালদীঘি" }), "en");
+  assert.doesNotMatch(stop, bangla);
+  assert.equal(JSON.parse(stop).stop, "Lal Dighi");
+
+  // একে খান মোড় and এ কে খান মোড় stay separate stops in English too.
+  assert.equal(JSON.parse(runRouteTool("find_stop", JSON.stringify({ query: "AK Khan Mor" }), "en")).servedBy[0].route, "11");
+  assert.equal(JSON.parse(runRouteTool("find_stop", JSON.stringify({ query: "A K Khan Mor" }), "en")).servedBy[0].route, "10");
+});

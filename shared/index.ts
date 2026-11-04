@@ -26,6 +26,15 @@ export {
   type TripPlan,
 } from "./trip";
 export {
+  englishPlaceName,
+  placeName,
+  replacePlaceNamesWithEnglish,
+  routeDisplayName,
+  routeNote,
+  stopFromEnglish,
+  type NameLanguage,
+} from "./placeNames";
+export {
   DEFAULT_VEHICLE_TYPE,
   VEHICLE_TYPES,
   isVehicleType,

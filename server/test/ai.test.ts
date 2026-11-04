@@ -211,6 +211,63 @@ test("AI rejects empty output and unexpected route numbers", async () => {
   assert.match(answer.answer, /নেই/);
 });
 
+test("AI accepts plain English statements that a route does not exist", async () => {
+  for (const output_text of [
+    "There is no route 09 in the verified dataset.",
+    "No verified route 09 exists.",
+    "Route 09 isn't in the verified list.",
+    "Route 09 is not a verified route.",
+    "Route 09 cannot be verified.",
+  ]) {
+    const { service } = serviceWith(async () => ({ output_text }));
+    const result = await service.ask({ message: "Is there a route 09?", language: "en", liveSummary });
+    assert.equal(result.answer, output_text);
+  }
+});
+
+test("AI still rejects an invented route next to an unrelated negative", async () => {
+  for (const output_text of [
+    "Take route 09 to Lal Dighi, no change needed.",
+    "Board route 99. Do not get off early.",
+  ]) {
+    const { service } = serviceWith(async () => ({ output_text }));
+    await assert.rejects(
+      service.ask({ message: "How do I get there?", language: "en", liveSummary }),
+      (error: unknown) => error instanceof AiError && error.code === "AI_INVALID_RESPONSE"
+    );
+  }
+});
+
+test("AI gives the model its data in the selected answer language", async () => {
+  const bangla = /[ঀ-৿]/;
+  const english = serviceWith(async () => ({ output_text: "Take route 01." }));
+  await english.service.ask({ message: "লালদীঘি কোথায়?", language: "en", liveSummary });
+  const englishPrompt = String(english.calls[0].instructions);
+  assert.doesNotMatch(englishPrompt.split("VERIFIED ROUTE DATASET")[1], bangla);
+  assert.match(englishPrompt, /Route 01: Oxygen – Barek Building/);
+  assert.match(englishPrompt, /Answer only in English, even if the question is in Bangla/);
+
+  const standard = serviceWith(async () => ({ output_text: "রুট ০১-এ যান।" }));
+  await standard.service.ask({ message: "Where is Lal Dighi?", language: "bn", liveSummary });
+  const banglaPrompt = String(standard.calls[0].instructions);
+  assert.match(banglaPrompt, /Route 01: অক্সিজেন – বারেক বিল্ডিং/);
+  assert.match(banglaPrompt, /Answer only in standard Bangla, even if the question is in English/);
+});
+
+test("AI replaces Bangla place names left in an English answer", async () => {
+  const { service } = serviceWith(async () => ({
+    output_text: "Change at অক্সিজেন মোড় for লালদীঘি.",
+  }));
+  const result = await service.ask({ message: "লালদীঘি?", language: "en", liveSummary });
+  assert.equal(result.answer, "Change at Oxygen Mor for Lal Dighi.");
+});
+
+test("AI leaves Bangla answers untouched", async () => {
+  const { service } = serviceWith(async () => ({ output_text: "লালদীঘি থেকে রুট ০৩।" }));
+  const result = await service.ask({ message: "লালদীঘি?", language: "bn", liveSummary });
+  assert.equal(result.answer, "লালদীঘি থেকে রুট ০৩।");
+});
+
 test("live summary explicitly marks unavailable tracking data", () => {
   const text = formatLiveSummary({
     liveDataAvailable: false,
@@ -229,6 +286,7 @@ test("route context documents Route 15 as partially inferred", () => {
   assert.match(context, /Route 15/);
   assert.match(context, /partially inferred/);
   assert.match(context, /return via \(not a stop\): আবদুস সাত্তার রোড/);
+  assert.match(buildRouteContext("en"), /return via \(not a stop\): Abdus Sattar Road/);
 });
 
 test("instructions include language and anti-hallucination constraints", () => {
