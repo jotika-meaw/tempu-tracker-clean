@@ -26,6 +26,7 @@ import {
   estimateAgeSeconds,
 } from "./lib/freshness";
 import { describeApiError } from "./lib/errors";
+import { placeName, routeDisplayName } from "./lib/placeNames";
 import { Banner } from "./components/Banner";
 import { TempuIcon, VehicleIcon } from "./components/TempuIcon";
 import { VEHICLE_SVGS } from "./components/vehicleSvgs";
@@ -296,7 +297,7 @@ export function LiveMap({ language, embedded = false }: LiveMapProps) {
               {tempuRoutes.map((route) => (
                 <option key={route.number} value={route.number}>
                   {t(language, "routeNumberLabel", { number: route.number })} —{" "}
-                  {route.name}
+                  {routeDisplayName(route.name, language)}
                 </option>
               ))}
             </select>
@@ -382,20 +383,21 @@ export function LiveMap({ language, embedded = false }: LiveMapProps) {
                     {t(language, "routeNumberLabel", {
                       number: vehicle.routeNumber,
                     })}{" "}
-                    — {vehicle.routeName}
+                    — {routeDisplayName(vehicle.routeName, language)}
                   </strong>
                   <br />
                   {vehicle.direction === "outbound"
                     ? t(language, "directionOutbound")
                     : t(language, "directionReturn")}
-                  : {vehicle.startStop} → {vehicle.endStop}
+                  : {placeName(vehicle.startStop, language)} →{" "}
+                  {placeName(vehicle.endStop, language)}
                   <br />
                   {t(language, VEHICLE_LABEL[vehicleTypeOf(vehicle.vehicleType)])}
                   <br />
                   {vehicle.demo ? (
                     <>
                       {vehicle.nextStop
-                        ? t(language, "demoNextStop", { stop: vehicle.nextStop })
+                        ? t(language, "demoNextStop", { stop: placeName(vehicle.nextStop, language) })
                         : t(language, "demoAtTerminal")}
                       <br />
                       <em>{t(language, "demoNotReal")}</em>
@@ -526,7 +528,7 @@ export function LiveMap({ language, embedded = false }: LiveMapProps) {
                   />
                   <span className="route-badge">{vehicle.routeNumber}</span>
                   <div className="vehicle-title">
-                    <strong>{vehicle.routeName}</strong>
+                    <strong>{routeDisplayName(vehicle.routeName, language)}</strong>
                     <span>
                       {t(language, VEHICLE_LABEL[vehicleTypeOf(vehicle.vehicleType)])} ·{" "}
                       {vehicle.direction === "outbound"
@@ -544,13 +546,14 @@ export function LiveMap({ language, embedded = false }: LiveMapProps) {
                   </span>
                 </div>
                 <p className="vehicle-path">
-                  {vehicle.startStop} → {vehicle.endStop}
+                  {placeName(vehicle.startStop, language)} →{" "}
+                  {placeName(vehicle.endStop, language)}
                 </p>
                 {vehicle.demo ? (
                   <div className="vehicle-meta">
                     <span>
                       {vehicle.nextStop
-                        ? t(language, "demoNextStop", { stop: vehicle.nextStop })
+                        ? t(language, "demoNextStop", { stop: placeName(vehicle.nextStop, language) })
                         : t(language, "demoAtTerminal")}
                     </span>
                     <span>{t(language, "demoNotReal")}</span>

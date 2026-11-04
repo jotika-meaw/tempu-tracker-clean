@@ -6,6 +6,7 @@ import { Icon } from "./Icon";
 import { VehicleIcon } from "./TempuIcon";
 import { approachingDemoVehicle, demoVehiclesAt, DEMO_ROUTE_NUMBERS } from "../lib/demoFleet";
 import { useDemoVehiclesEnabled, useTickingNow } from "../lib/demoMode";
+import { placeName, stopFromEnglish } from "../lib/placeNames";
 import { VEHICLE_LABEL, vehicleTypeOf } from "../lib/vehicles";
 
 type TripPlannerProps = {
@@ -24,12 +25,13 @@ export function TripPlanner({ language }: TripPlannerProps) {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!from.trim() || !to.trim()) return;
-    setPlan(planTrip(from, to));
+    setPlan(planTrip(stopFromEnglish(from, stops), stopFromEnglish(to, stops)));
   }
 
   function pickSuggestion(stop: string) {
-    if (plan && !plan.ok && plan.code === "UNKNOWN_FROM") setFrom(stop);
-    else setTo(stop);
+    const label = placeName(stop, language);
+    if (plan && !plan.ok && plan.code === "UNKNOWN_FROM") setFrom(label);
+    else setTo(label);
     setPlan(null);
   }
 
@@ -52,7 +54,7 @@ export function TripPlanner({ language }: TripPlannerProps) {
             list="trip-stop-list"
             value={from}
             onChange={(event) => setFrom(event.target.value)}
-            placeholder="লালদীঘি"
+            placeholder={placeName("লালদীঘি", language)}
             autoComplete="off"
             required
           />
@@ -75,7 +77,7 @@ export function TripPlanner({ language }: TripPlannerProps) {
             list="trip-stop-list"
             value={to}
             onChange={(event) => setTo(event.target.value)}
-            placeholder="সিডিএ"
+            placeholder={placeName("সিডিএ", language)}
             autoComplete="off"
             required
           />
@@ -85,7 +87,7 @@ export function TripPlanner({ language }: TripPlannerProps) {
         </button>
         <datalist id="trip-stop-list">
           {stops.map((stop) => (
-            <option key={stop} value={stop} />
+            <option key={stop} value={placeName(stop, language)} />
           ))}
         </datalist>
       </form>
@@ -103,7 +105,7 @@ export function TripPlanner({ language }: TripPlannerProps) {
                     className="suggestion-chip"
                     onClick={() => pickSuggestion(stop)}
                   >
-                    {stop}
+                    {placeName(stop, language)}
                   </button>
                 ))}
               </span>
@@ -134,11 +136,13 @@ export function TripPlanner({ language }: TripPlannerProps) {
                           {t(language, "tripRide", {
                             route: leg.routeNumber,
                             direction: t(language, leg.direction === "outbound" ? "tripOutbound" : "tripReturn"),
-                            from: leg.boardStop,
-                            to: leg.alightStop,
+                            from: placeName(leg.boardStop, language),
+                            to: placeName(leg.alightStop, language),
                           })}
                         </p>
-                        <p className="trip-leg-stops">{leg.stops.join(" → ")}</p>
+                        <p className="trip-leg-stops">
+                          {leg.stops.map((stop) => placeName(stop, language)).join(" → ")}
+                        </p>
                         {demoEnabled && DEMO_ROUTE_NUMBERS.includes(leg.routeNumber)
                           ? (() => {
                               const coming = approachingDemoVehicle(
@@ -162,7 +166,7 @@ export function TripPlanner({ language }: TripPlannerProps) {
                                   {coming.stopsAway === 0
                                     ? t(language, "demoAtBoarding", {
                                         vehicle: label,
-                                        stop: leg.boardStop,
+                                        stop: placeName(leg.boardStop, language),
                                       })
                                     : t(language, "demoApproaching", {
                                         vehicle: label,
@@ -177,7 +181,7 @@ export function TripPlanner({ language }: TripPlannerProps) {
                         ) : null}
                         {legIndex < option.legs.length - 1 ? (
                           <p className="trip-change">
-                            {t(language, "tripChangeAt", { stop: leg.alightStop })}
+                            {t(language, "tripChangeAt", { stop: placeName(leg.alightStop, language) })}
                           </p>
                         ) : null}
                       </div>

@@ -18,6 +18,7 @@ import {
 } from "../shared/journey";
 import { tempuRoutes, type Direction } from "../shared/routes";
 import { t, formatDateTime, formatTime, type UiLanguage } from "./i18n";
+import { placeName, routeDisplayName } from "./lib/placeNames";
 import { Banner } from "./components/Banner";
 import { DirectionStops } from "./components/DirectionStops";
 import { VehicleIcon } from "./components/TempuIcon";
@@ -439,7 +440,7 @@ export function DriverPanel({ language, onOpenMap }: DriverPanelProps) {
                 {tempuRoutes.map((item) => (
                   <option key={item.number} value={item.number}>
                     {t(language, "routeNumberLabel", { number: item.number })} —{" "}
-                    {item.name}
+                    {routeDisplayName(item.name, language)}
                   </option>
                 ))}
               </select>
@@ -472,7 +473,7 @@ export function DriverPanel({ language, onOpenMap }: DriverPanelProps) {
                 {stops.map((stop, index) =>
                   index < stops.length - 1 ? (
                     <option key={`${index}-${stop}`} value={index}>
-                      {stop}
+                      {placeName(stop, language)}
                     </option>
                   ) : null
                 )}
@@ -495,7 +496,7 @@ export function DriverPanel({ language, onOpenMap }: DriverPanelProps) {
                 {stops.map((stop, index) =>
                   typeof startIndex === "number" && index > startIndex ? (
                     <option key={`${index}-${stop}`} value={index}>
-                      {stop}
+                      {placeName(stop, language)}
                     </option>
                   ) : null
                 )}
@@ -507,7 +508,7 @@ export function DriverPanel({ language, onOpenMap }: DriverPanelProps) {
             <div className="driver-route-preview">
               <div className="route-result-header compact-header">
                 <span className="route-badge">{route.number}</span>
-                <h3>{route.name}</h3>
+                <h3>{routeDisplayName(route.name, language)}</h3>
               </div>
               {directionData.confidence === "partial" ? (
                 <p className="inline-notice inline-notice-warning" role="note">

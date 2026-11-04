@@ -6,6 +6,7 @@ import { TempuIcon } from "./TempuIcon";
 import { DEMO_VEHICLE_COUNT } from "../lib/demoFleet";
 import { useDemoVehiclesEnabled } from "../lib/demoMode";
 import { t, type UiLanguage } from "../i18n";
+import { placeName, routeDisplayName } from "../lib/placeNames";
 import { searchRoutes } from "../lib/search";
 import { DirectionStops } from "./DirectionStops";
 import { RouteDirectory } from "./RouteDirectory";
@@ -92,8 +93,8 @@ export function PassengerHome({
         <div className="hero-art" aria-hidden="true">
           <span className="hero-road" />
           <TempuIcon size={150} className="hero-tempu" />
-          <span className="hero-stop hero-stop-one">লালদীঘি</span>
-          <span className="hero-stop hero-stop-two">জিইসি</span>
+          <span className="hero-stop hero-stop-one">{placeName("লালদীঘি", language)}</span>
+          <span className="hero-stop hero-stop-two">{placeName("জিইসি", language)}</span>
         </div>
 
         <dl className="hero-stats">
@@ -160,19 +161,22 @@ export function PassengerHome({
 
         <div className="suggestion-row">
           <span className="suggestion-label">{t(language, "searchTry")}</span>
-          {popularStops.map((stop) => (
-            <button
-              className="suggestion-chip"
-              key={stop}
-              type="button"
-              onClick={() => {
-                setQuery(stop);
-                runSearch(stop);
-              }}
-            >
-              {stop}
-            </button>
-          ))}
+          {popularStops.map((stop) => {
+            const label = placeName(stop, language);
+            return (
+              <button
+                className="suggestion-chip"
+                key={stop}
+                type="button"
+                onClick={() => {
+                  setQuery(label);
+                  runSearch(label);
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
 
         {formError ? (
@@ -209,7 +213,7 @@ export function PassengerHome({
                       {result.route.number}
                     </span>
                     <div>
-                      <h3>{result.route.name}</h3>
+                      <h3>{routeDisplayName(result.route.name, language)}</h3>
                       {result.matchedRouteName || result.matchedRouteNumber ? (
                         <p className="route-match-note">
                           {t(language, "searchMatchRoute")}

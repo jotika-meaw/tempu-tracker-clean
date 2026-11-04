@@ -1,5 +1,6 @@
 import { getDirectionData, type Direction, type TempuRoute } from "../routes";
 import { t, type UiLanguage } from "../i18n";
+import { placeName, routeNote } from "../lib/placeNames";
 
 type DirectionStopsProps = {
   route: TempuRoute;
@@ -46,7 +47,7 @@ export function DirectionStops({
               </span>
             ) : null}
             <span className={`stop-chip${matched.has(index) ? " stop-chip-matched" : ""}`}>
-              {stop}
+              {placeName(stop, language)}
             </span>
           </span>
         ))}
@@ -54,13 +55,13 @@ export function DirectionStops({
 
       {data.via?.length ? (
         <p className="direction-note">
-          <strong>{t(language, "viaRoads")}:</strong> {data.via.join(", ")}
+          <strong>{t(language, "viaRoads")}:</strong> {data.via.map((road) => placeName(road, language)).join(", ")}
         </p>
       ) : null}
 
       {data.note ? (
         <p className="direction-note">
-          <strong>{t(language, "commonNote")}:</strong> {data.note}
+          <strong>{t(language, "commonNote")}:</strong> {routeNote(data.note, language)}
         </p>
       ) : null}
     </div>

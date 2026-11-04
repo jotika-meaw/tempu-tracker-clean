@@ -1,5 +1,6 @@
 import { tempuRoutes } from "../routes";
 import { t, type UiLanguage } from "../i18n";
+import { routeDisplayName } from "../lib/placeNames";
 import { DirectionStops } from "./DirectionStops";
 
 export function RouteDirectory({ language }: { language: UiLanguage }) {
@@ -20,7 +21,9 @@ export function RouteDirectory({ language }: { language: UiLanguage }) {
           <details className="route-directory-item" key={route.number}>
             <summary>
               <span className="route-badge">{route.number}</span>
-              <span className="route-summary-name">{route.name}</span>
+              <span className="route-summary-name">
+                {routeDisplayName(route.name, language)}
+              </span>
               <span className="route-summary-count">
                 {t(language, "routeStopsCount", {
                   count: route.outbound.stops.length,

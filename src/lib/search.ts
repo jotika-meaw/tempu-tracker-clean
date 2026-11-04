@@ -4,6 +4,7 @@ import {
   type Direction,
   type TempuRoute,
 } from "../routes";
+import { englishPlaceName, routeDisplayName } from "./placeNames";
 
 export type DirectionMatch = {
   direction: Direction;
@@ -38,12 +39,17 @@ export function normalizeSearchText(value: string): string {
     .trim();
 }
 
-function stopScore(stop: string, query: string): number {
-  const normalized = normalizeSearchText(stop);
+function textScore(text: string, query: string): number {
+  const normalized = normalizeSearchText(text);
   if (normalized === query) return 100;
   if (normalized.startsWith(query)) return 60;
   if (normalized.includes(query)) return 30;
   return 0;
+}
+
+function stopScore(stop: string, query: string): number {
+  const english = englishPlaceName(stop);
+  return Math.max(textScore(stop, query), english ? textScore(english, query) : 0);
 }
 
 /**
@@ -62,7 +68,9 @@ export function searchRoutes(rawQuery: string): RouteSearchResult[] {
       normalizedNumber === query ||
       (normalizedNumber.startsWith("0") &&
         normalizedNumber.slice(1) === query);
-    const matchedRouteName = normalizeSearchText(route.name).includes(query);
+    const matchedRouteName =
+      normalizeSearchText(route.name).includes(query) ||
+      normalizeSearchText(routeDisplayName(route.name, "en")).includes(query);
 
     let score = 0;
     if (matchedRouteNumber) score += 90;
