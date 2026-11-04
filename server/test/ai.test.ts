@@ -225,6 +225,39 @@ test("AI accepts plain English statements that a route does not exist", async ()
   }
 });
 
+test("AI accepts the prompt's own wording for an unverifiable route", async () => {
+  const output_text = "Route 09 cannot currently be verified.";
+  const { service } = serviceWith(async () => ({ output_text }));
+  const result = await service.ask({ message: "Is there a route 09?", language: "en", liveSummary });
+  assert.equal(result.answer, output_text);
+});
+
+test("AI answers directly when asked about a route that does not exist", async () => {
+  const cases = [
+    { message: "Tell me about route 09", language: "en", expected: /^Route 09 is not in the verified dataset\. Verified routes: 01, .*17\.$/ },
+    { message: "Does route 9 exist?", language: "en", expected: /^Route 09 is not in the verified dataset\./ },
+    { message: "রুট ০৯ কোথায় যায়?", language: "bn", expected: /^রুট ০৯ যাচাইকৃত তালিকায় নেই। যাচাইকৃত রুট: ০১, .*১৭।$/ },
+    { message: "Tell me about route 9", language: "ctg", expected: /^রুট ০৯ যাচাই করা তালিকাত নাই।/ },
+  ] as const;
+
+  for (const { message, language, expected } of cases) {
+    const { service } = serviceWith(async () => ({
+      output_text: "Route 09 runs from Lal Dighi to CDA.",
+    }));
+    const result = await service.ask({ message, language, liveSummary });
+    assert.match(result.answer, expected);
+    assert.doesNotMatch(result.answer, /Lal Dighi/);
+  }
+});
+
+test("AI still rejects an invented route the user did not ask about", async () => {
+  const { service } = serviceWith(async () => ({ output_text: "Take route 99 instead." }));
+  await assert.rejects(
+    service.ask({ message: "Is there a route 09?", language: "en", liveSummary }),
+    (error: unknown) => error instanceof AiError && error.code === "AI_INVALID_RESPONSE"
+  );
+});
+
 test("AI still rejects an invented route next to an unrelated negative", async () => {
   for (const output_text of [
     "Take route 09 to Lal Dighi, no change needed.",

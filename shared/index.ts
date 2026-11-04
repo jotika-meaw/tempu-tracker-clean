@@ -32,6 +32,7 @@ export {
   routeDisplayName,
   routeNote,
   stopFromEnglish,
+  stopsMatchingEnglish,
   type NameLanguage,
 } from "./placeNames";
 export {

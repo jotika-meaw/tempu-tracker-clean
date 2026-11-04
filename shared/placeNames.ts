@@ -167,6 +167,15 @@ export function replacePlaceNamesWithEnglish(text: string): string {
   return result;
 }
 
+/** Every stop whose English name contains the text, as Bangla data keys. */
+export function stopsMatchingEnglish(query: string, stops: string[]): string[] {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return [];
+  return stops.filter((stop) =>
+    englishPlaceName(stop)?.toLowerCase().includes(normalized)
+  );
+}
+
 /**
  * Turns an English stop name typed into a form back into its Bangla data key:
  * an exact match, or a partial match only when exactly one stop fits, so
@@ -174,15 +183,8 @@ export function replacePlaceNamesWithEnglish(text: string): string {
  */
 export function stopFromEnglish(query: string, stops: string[]): string {
   const normalized = query.trim().toLowerCase();
-  if (!normalized) return query;
-
-  const named = stops.flatMap((stop) => {
-    const english = englishPlaceName(stop);
-    return english ? [{ stop, english: english.toLowerCase() }] : [];
-  });
-  const exact = named.find((item) => item.english === normalized);
-  if (exact) return exact.stop;
-
-  const partial = named.filter((item) => item.english.includes(normalized));
-  return partial.length === 1 ? partial[0].stop : query;
+  const matches = stopsMatchingEnglish(query, stops);
+  const exact = matches.find((stop) => englishPlaceName(stop)?.toLowerCase() === normalized);
+  if (exact) return exact;
+  return matches.length === 1 ? matches[0] : query;
 }

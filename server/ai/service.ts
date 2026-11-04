@@ -75,7 +75,8 @@ const ROUTE_CONTEXT: Record<AiLanguage, string> = {
 
 const ROUTE_ABSENCE_BEFORE = /\b(?:no|not|isn't|without)\s+(?:[\w-]+\s+){0,2}$/i;
 const ROUTE_ABSENCE_NEAR =
-  /(নেই|নাই|absent|not available|not in|not (?:a|an|listed|found|included|part|present|verified)|isn't|does not exist|doesn't exist|cannot be verified|can't be verified|যাচাইকৃত\s*তালিকায়\s*নেই)/i;
+  /(নেই|নাই|absent|not available|not in|not (?:a|an|listed|found|included|part|present|verified)|isn't|does not exist|doesn't exist|(?:cannot|can't)(?:\s+currently)?\s+be\s+verified|যাচাইকৃত\s*তালিকায়\s*নেই)/i;
+const ROUTE_MENTION = /(?:রুট|route)\s*#?\s*([0-9]{1,2})/gi;
 
 function defaultSleep(milliseconds: number): Promise<void> {
   return new Promise((resolve) => {
@@ -84,14 +85,19 @@ function defaultSleep(milliseconds: number): Promise<void> {
   });
 }
 
+const BENGALI_DIGITS = "০১২৩৪৫৬৭৮৯";
+
 function normalizeDigits(value: string): string {
-  const bengali = "০১২৩৪৫৬৭৮৯";
   return [...value]
     .map((character) => {
-      const index = bengali.indexOf(character);
+      const index = BENGALI_DIGITS.indexOf(character);
       return index >= 0 ? String(index) : character;
     })
     .join("");
+}
+
+function toBengaliDigits(value: string): string {
+  return value.replace(/[0-9]/g, (digit) => BENGALI_DIGITS[Number(digit)]);
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
@@ -216,9 +222,8 @@ function unknownRouteMention(
   allowedRouteNumbers: ReadonlySet<string>
 ): string | null {
   const normalized = normalizeDigits(answer);
-  const pattern = /(?:রুট|route)\s*#?\s*([0-9]{1,2})/gi;
 
-  for (const match of normalized.matchAll(pattern)) {
+  for (const match of normalized.matchAll(ROUTE_MENTION)) {
     const routeNumber = match[1].padStart(2, "0");
     if (allowedRouteNumbers.has(routeNumber)) continue;
 
@@ -232,6 +237,28 @@ function unknownRouteMention(
   }
 
   return null;
+}
+
+function asksAboutRoute(message: string, routeNumber: string): boolean {
+  return [...normalizeDigits(message).matchAll(ROUTE_MENTION)].some(
+    (match) => match[1].padStart(2, "0") === routeNumber
+  );
+}
+
+function routeNotVerifiedAnswer(
+  routeNumber: string,
+  allowedRouteNumbers: ReadonlySet<string>,
+  language: AiLanguage
+): string {
+  const verified = [...allowedRouteNumbers].join(", ");
+  if (language === "en") {
+    return `Route ${routeNumber} is not in the verified dataset. Verified routes: ${verified}.`;
+  }
+  const list = toBengaliDigits(verified);
+  const number = toBengaliDigits(routeNumber);
+  return language === "ctg"
+    ? `রুট ${number} যাচাই করা তালিকাত নাই। যাচাই করা রুট: ${list}।`
+    : `রুট ${number} যাচাইকৃত তালিকায় নেই। যাচাইকৃত রুট: ${list}।`;
 }
 
 export class MetaAIService {
@@ -316,7 +343,7 @@ export class MetaAIService {
       const calls = offerTools ? (response.function_calls ?? []).slice(0, MAX_CALLS_PER_ROUND) : [];
       if (calls.length === 0) {
         return {
-          answer: this.validateAnswer(response.output_text, input.language),
+          answer: this.validateAnswer(response.output_text, input),
           model: this.model,
           toolCalls,
         };
@@ -363,7 +390,7 @@ export class MetaAIService {
     throw lastError ?? new AiError(503, "AI_UNAVAILABLE", "The AI provider failed.");
   }
 
-  private validateAnswer(raw: string | undefined, language: AiLanguage): string {
+  private validateAnswer(raw: string | undefined, { message, language }: AskInput): string {
     // The answer box shows plain text, so drop Markdown bold/heading markers.
     const answer = (raw ?? "")
       .replace(/\*\*(.+?)\*\*/g, "$1")
@@ -380,6 +407,11 @@ export class MetaAIService {
 
     const unknownRoute = unknownRouteMention(answer, this.allowedRouteNumbers);
     if (unknownRoute) {
+      // The user asked about this route, so the truthful answer is known
+      // whatever the model wrote. A route it brought up by itself is an error.
+      if (asksAboutRoute(message, unknownRoute)) {
+        return routeNotVerifiedAnswer(unknownRoute, this.allowedRouteNumbers, language);
+      }
       throw new AiError(
         502,
         "AI_INVALID_RESPONSE",

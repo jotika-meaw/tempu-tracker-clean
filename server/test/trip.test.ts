@@ -106,6 +106,20 @@ test("route tools accept either language and answer in the selected one", () => 
   assert.doesNotMatch(stop, bangla);
   assert.equal(JSON.parse(stop).stop, "Lal Dighi");
 
+  // A vague English name offers the candidates instead of resolving to one.
+  const vague = JSON.parse(runRouteTool("find_stop", JSON.stringify({ query: "Khan" }), "en"));
+  assert.equal(vague.found, false);
+  assert.deepEqual([...vague.suggestions].sort(), ["A K Khan Mor", "AK Khan Gate", "AK Khan Mor", "Jamalkhan"]);
+
+  const vagueBangla = JSON.parse(runRouteTool("find_stop", JSON.stringify({ query: "Gate" }), "bn"));
+  assert.equal(vagueBangla.found, false);
+  assert.ok(vagueBangla.suggestions.includes("সিটি গেট"));
+
+  const vagueTrip = JSON.parse(runRouteTool("plan_trip", JSON.stringify({ from: "Khan", to: "CDA" }), "en"));
+  assert.equal(vagueTrip.code, "UNKNOWN_FROM");
+  assert.ok(vagueTrip.suggestions.includes("AK Khan Gate"));
+  assert.equal(vagueTrip.to, "CDA");
+
   // একে খান মোড় and এ কে খান মোড় stay separate stops in English too.
   assert.equal(JSON.parse(runRouteTool("find_stop", JSON.stringify({ query: "AK Khan Mor" }), "en")).servedBy[0].route, "11");
   assert.equal(JSON.parse(runRouteTool("find_stop", JSON.stringify({ query: "A K Khan Mor" }), "en")).servedBy[0].route, "10");

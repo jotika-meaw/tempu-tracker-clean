@@ -1,5 +1,10 @@
 import { allTripStops, planTrip, resolveStop } from "../../shared/trip";
-import { placeName, routeDisplayName, stopFromEnglish } from "../../shared/placeNames";
+import {
+  placeName,
+  routeDisplayName,
+  stopFromEnglish,
+  stopsMatchingEnglish,
+} from "../../shared/placeNames";
 import { tempuRoutes } from "../../shared/routes";
 import { getDirectionData } from "../../shared/journey";
 import type { AiLanguage } from "../validation";
@@ -51,11 +56,19 @@ function stopArg(args: Record<string, unknown>, key: string): string {
   return stopFromEnglish(stringArg(args, key), allTripStops());
 }
 
+const MAX_SUGGESTIONS = 6;
+
+/** Candidates for a stop that was not resolved, from the Bangla or English names. */
+function stopSuggestions(query: string, banglaMatches: string[]): string[] {
+  const matches = banglaMatches.length > 0 ? banglaMatches : stopsMatchingEnglish(query, allTripStops());
+  return matches.slice(0, MAX_SUGGESTIONS);
+}
+
 function findStop(query: string, language: AiLanguage) {
   const resolved = resolveStop(query);
   const stops = (list: string[]) => list.map((stop) => placeName(stop, language));
   if (!resolved.stop) {
-    return { found: false, suggestions: stops(resolved.suggestions) };
+    return { found: false, suggestions: stops(stopSuggestions(query, resolved.suggestions)) };
   }
 
   const served = tempuRoutes.flatMap((route) =>
@@ -100,15 +113,19 @@ export function runRouteTool(
   }
 
   if (name === "plan_trip") {
-    const plan = planTrip(stopArg(args, "from"), stopArg(args, "to"));
+    const from = stopArg(args, "from");
+    const to = stopArg(args, "to");
+    const plan = planTrip(from, to);
     const stop = (value: string) => placeName(value, language);
     const optionalStop = (value: string | null) => (value ? stop(value) : value);
     if (!plan.ok) {
+      const unknown = plan.code === "UNKNOWN_FROM" ? from : plan.code === "UNKNOWN_TO" ? to : null;
+      const suggestions = unknown ? stopSuggestions(unknown, plan.suggestions) : plan.suggestions;
       return JSON.stringify({
         ...plan,
         from: optionalStop(plan.from),
         to: optionalStop(plan.to),
-        suggestions: plan.suggestions.map(stop),
+        suggestions: suggestions.map(stop),
       });
     }
     return JSON.stringify({
